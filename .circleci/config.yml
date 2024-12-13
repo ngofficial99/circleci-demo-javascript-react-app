@@ -4,9 +4,9 @@ orbs:
   heroku: circleci/heroku@1.2.6
 
 jobs:
-  build_and_test:
+  test:
     docker:
-      - image: cimg/node:18.20.0  # Updated to a compatible Node.js version
+      - image: cimg/node:18.20.0
     steps:
       - checkout
       - node/install-packages:
@@ -15,6 +15,15 @@ jobs:
       - run:
           command: yarn test
           name: Run tests
+
+  build:
+    docker:
+      - image: cimg/node:18.20.0
+    steps:
+      - checkout
+      - node/install-packages:
+          pkg-manager: yarn
+          override-ci-command: yarn install --frozen-lockfile
       - run:
           command: yarn build
           name: Build app
@@ -33,17 +42,46 @@ jobs:
           force: true
 
 workflows:
-  on_commit:
+  version: 2
+  
+  # Workflow for pull requests and feature branches
+  test-workflow:
     jobs:
-      - build_and_test
-      # Uncomment the following when you have HEROKU_API_KEY & HEROKU_APP_NAME set up
+      - test:
+          filters:
+            branches:
+              ignore: 
+                - main
+                - master
+
+  # Workflow for main branch
+  main-workflow:
+    jobs:
+      - test:
+          filters:
+            branches:
+              only: 
+                - main
+                - master
+      - build:
+          requires:
+            - test
+          filters:
+            branches:
+              only: 
+                - main
+                - master
+      # Uncomment when Heroku credentials are set up
       # - deploy:
       #     requires:
-      #       - build_and_test
+      #       - build
       #     filters:
       #       branches:
-      #         only: master
+      #         only: 
+      #           - main
+      #           - master
 
+  # Nightly build workflow
   nightly:
     triggers:
       - schedule:
@@ -51,13 +89,14 @@ workflows:
           filters:
             branches:
               only:
+                - main
                 - master
     jobs:
-      - build_and_test
-      # Uncomment the following when you have Heroku credentials set up
+      - test
+      - build:
+          requires:
+            - test
+      # Uncomment when Heroku credentials are set up
       # - deploy:
       #     requires:
-      #       - build_and_test
-      #     filters:
-      #       branches:
-      #         only: master
+      #       - build
